@@ -9,5 +9,5 @@ This project analyzes gene expression data from the GEO database (GSE10325) to i
 - DEGs identified using empirical Bayes modeling
 
 ## Key Findings
-- Clear separation of gene expression patterns between groups
-- Immune and interferon-response genes were highly upregulated in SLE
+- No clear separation of gene expression patterns between groups
+- Immune and interferon-response genes were slighlty upregulated in SLE
