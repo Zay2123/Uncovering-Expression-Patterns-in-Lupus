@@ -1,0 +1,138 @@
+---
+title: "Uncovering Expression Patterns in Lupus: PCA and Heatmap Visualization of SLE Gene Expression Data"
+author: "Isaiah Dominguez"
+format: docx
+editor: visual
+---
+
+## Objective:
+
+To identify transcriptomic differences between SLE patients and healthy individuals using gene expression microarray data from the NCBI GEO database.
+
+## **Background / Problem Statement**:
+
+Systemic Lupus Erythematosus (SLE) is a chronic autoimmune disease with complex immune dysregulation. Identifying differentially expressed genes may uncover biomarkers or molecular pathways involved in disease progression. Microarray analysis allows high-throughput profiling of gene expression in patient-derived samples.
+
+**Goal:** Analyze gene expression differences in peripheral blood samples using statistical modeling and visualization in R.
+
+## **Dataset Overview:**
+
+**Dataset:** GSE10325 (Gene Expression Omnibus)
+
+-   **Samples:** 67 total (39 SLE, 28 Healthy Controls)
+
+-   **Tissue Source:** Peripheral blood (lymphocytes
+
+-   **Platform:** Affymetrix Human Genome U133A Array (GPL96)
+
+-   **Data Type:** Raw expression values
+
+## **Analysis Pipeline**
+
+**Tools Used:**
+
+-   R (GEOquery, limma, prcomp, pheatmap)
+
+**Load Required Libraries**
+
+```{r}
+library(GEOquery)
+library(limma)
+library(pheatmap)
+```
+
+**Download and Prepare Gene Expression Data**
+
+-   This section retrieves the SLE gene expression dataset GSE10325 from the GEO database.
+
+-   exprs_data contains the raw gene expression matrix (genes × samples).
+
+-   pheno_data holds the sample metadata, including group labels.
+
+**Basic exploratory plots and summaries are used to inspect the raw expression data**
+
+-   `boxplot()` shows the distribution of expression values across samples.
+
+-   `summary()` provides descriptive stats for the data set.
+
+-   `hist()` displays a histogram of overall expression levels to assess scale and normalization needs.
+
+```{r}
+gse <- getGEO("GSE10325", GSEMatrix = TRUE)
+exprs_data <- exprs(gse[[1]])
+pheno_data <- pData(gse[[1]]) 
+boxplot(exprs_data)
+summary(exprs_data)
+hist(exprs_data)
+pheno_data$Group <- ifelse(pheno_data$source_name_ch1 == "Peripheral blood from individuals with systemic lupus erythematosus", "SLE", "Healthy")
+table(pheno_data$Group)
+```
+
+We applied quantile normalization to the raw expression data using the limma package. It ensures that all samples have comparable distributions, which is essential for accurate downstream analysis, especially for micro array data.
+
+PCA is then used to reduce dimensionality and summarize the variance in gene expression across samples.
+
+```{r}
+exprs_norm <- normalizeBetweenArrays(exprs_data, method = "quantile")
+pca <- prcomp(t(exprs_norm), scale. = TRUE)
+plot(pca$x[,1:2], 
+     col = as.factor(pheno_data$Group), 
+     pch = 16, 
+     xlab = "PC1", ylab = "PC2",
+     main = "PCA of SLE vs Healthy Samples")
+legend("topright", legend = unique(pheno_data$Group), 
+       col = 1:2, pch = 16)
+```
+
+The PCA analysis of the full gene expression matrix did not reveal a clear separation between SLE and Healthy samples along the first two principal components. Although clustering is present, both clusters contain a mix of sample types, suggesting that disease status alone does not account for the major variance in the data. This reflects the complexity of SLE and points to the need for targeted analysis of disease-relevant genes or additional dimensions.
+
+## **Analysis Pipeline**
+
+A variable was created to represent the sample group labels (“SLE” and “Healthy”) for use in the linear modeling process. A design matrix was then constructed without an intercept, allowing each group to have its own coefficient.
+
+Next, a linear model was fitted to the normalized gene expression data using this design matrix. This step estimates the average expression level for each gene within both groups.
+
+To identify differences in expression, a contrast was defined to compare the “SLE” group against the “Healthy” group. This contrast was applied to the fitted model.
+
+Empirical Bayes moderation was then used to stabilize standard errors and enhance statistical power particularly important when working with small sample sizes.
+
+```{r}
+group <- factor(pheno_data$Group)
+design <- model.matrix(~ 0 + group)
+colnames(design) <- levels(group)
+fit <- lmFit(exprs_norm, design)
+contrast.matrix <- makeContrasts(SLEvsHealthy = SLE - Healthy, levels = design)
+fit2 <- contrasts.fit(fit, contrast.matrix)
+fit2 <- eBayes(fit2)
+```
+
+From the results, the top 10 most differentially expressed genes were identified, ranked by statistical significance.
+
+```{r}
+top_genes <- topTable(fit2, number = 10)
+View(top_genes)
+```
+
+Finally, the normalized expression values for these top 10 genes were extracted across all samples. This subset of data was used to generate a heatmap for visualizing expression patterns.
+
+```{r}
+top_gene_names <- rownames(top_genes)
+heatmap_matrix <- exprs_norm[top_gene_names, ]
+annotation_col <- data.frame(Group = pheno_data$Group)
+rownames(annotation_col) <- colnames(heatmap_matrix)
+pheatmap(heatmap_matrix, 
+         annotation_col = annotation_col,
+         show_rownames = TRUE,
+         scale = "row", 
+         clustering_distance_rows = "euclidean",
+         clustering_distance_cols = "euclidean",
+         main = "Top 10 Differentially Expressed Genes")
+```
+
+**Visualization:**
+
+The heat map of the top 10 differentially expressed genes demonstrates consistent expression differences between SLE and Healthy groups. While not sharply contrasted, SLE patients generally exhibit higher expression levels indicated by warmer colors. The clustering pattern supports modest but biologically relevant transcriptional changes associated with lupus.
+
+## **Key Takeaways & Future Directions:**
+
+While individual gene expression differences were modest, the collective behavior of differentially expressed genes points toward immune-related dysregulation a hallmark of systemic lupus erythematosus. These results are consistent with previous studies linking SLE to abnormal immune cell signaling and chronic inflammation. PCA did not show strong global separation between SLE and healthy samples. The heatmap of the top 10 differentially expressed genes revealed subtle yet reproducible group-level differences in expression, with SLE patients tending to exhibit elevated levels across several immune-related genes.
