@@ -1,4 +1,4 @@
-# Uncovering-Expression-Patterns-in-Lupus
+## Uncovering-Expression-Patterns-in-Lupus
 
 ## Overview
 This project analyzes gene expression data from the GEO database (GSE10325) to identify differentially expressed genes between Systemic Lupus Erythematosus (SLE) patients and healthy individuals.
